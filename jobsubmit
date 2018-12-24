@@ -12,7 +12,7 @@
 application="stencil.exe"
 
 #! Run options for the application
-options="4096 4096 100"
+options="1024 1024 100"
 
 ###############################################################
 ### You should not have to change anything below this line ####
