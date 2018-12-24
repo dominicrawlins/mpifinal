@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include "mpi.h"
+#include "omp.h"
 
 // Define output file name
 #define OUTPUT_FILE "stencil.pgm"
@@ -24,7 +25,6 @@ void init_image(const short nx, const short ny, float * restrict  image, float *
 void output_image(const char * file_name, const short nx, const short ny, float *image);
 double wtime(void);
 short calculateRowBoundary(const short ny, const short rank, const short noOfPartitions, short topOrBottom);
-//short calculateAdjacentRank(const short direction, const short rank, const short noOfProcesses);
 
 int main(int argc, char *argv[]) {
 
@@ -62,22 +62,16 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size( MPI_COMM_WORLD, &size );
   /* determine the RANK of the current process [0:SIZE-1] */
   MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   // Set the input image
-  //if(rank == MASTER){
   init_image(nx, ny, image, tmp_image);
   output_image("startimage.pgm", nx, ny, image);
-  //}
+
 
   // Call the stencil kernel
   double tic;
   double toc;
-  // if(rank == MASTER){
-  //   for (short t = 0; t < niters; ++t) {
-  //     stencil(nx, ny, image, tmp_image);
-  //     stencil(nx, ny, tmp_image, image);
-  //   }
-  // }
-  // double toc = wtime();
+
 
 
   short first = calculateRowBoundary(ny, rank, size, LOW);
@@ -90,18 +84,17 @@ int main(int argc, char *argv[]) {
       stencilwhole(nx, ny, image, tmp_image);
       stencilwhole(nx, ny, tmp_image, image);
     }
-    printf("\n\nsize only 1\n\n\n");
     toc = wtime();
 
     printf("------------------------------------\n");
-    printf(" runtime size 1: %lf s\n", toc-tic);
+    printf(" runtime: %lf s\n", toc-tic);
     printf("------------------------------------\n");
 
     output_image(OUTPUT_FILE, nx, ny, image);
 
   }
   else{
-        if(rank == MASTER){
+    if(rank == MASTER){
       tic = wtime();
       for(short t = 0; t < niters; t++){
         MPI_Send(&image[last*nx], nx, MPI_FLOAT, 1, 1, MPI_COMM_WORLD);
@@ -127,7 +120,7 @@ int main(int argc, char *argv[]) {
       toc = wtime();
 
       printf("------------------------------------\n");
-      printf(" runtime size %d: %lf s\n", size, toc-tic);
+      printf(" runtime: %lf s\n", toc-tic);
       printf("------------------------------------\n");
 
       output_image(OUTPUT_FILE, nx, ny, image);
@@ -166,7 +159,6 @@ int main(int argc, char *argv[]) {
           MPI_Sendrecv(&tmp_image[first*nx], nx, MPI_FLOAT,rank-1, 1, &tmp_image[(last+1)*nx], nx, MPI_FLOAT, rank+1, 1, MPI_COMM_WORLD, &status);
 
           stencilmiddle(nx, first, last, tmp_image, image);
-          //send
         }
       }
       MPI_Send(&image[first*nx], nx*(last - first + 1), MPI_FLOAT, MASTER, 1, MPI_COMM_WORLD);
@@ -211,6 +203,8 @@ void stencilwhole(const short nx, const short ny, float * restrict image, float 
     tmp_image[i*nx] += image[(i+1)*nx] * 0.1f;
     tmp_image[i*nx] += image[1+i*nx] * 0.1f;
     //#pragma vector always
+// # pragma omp parallel for shared(image, tmp_image, nx, ny, i) schedule(dynamic, 2)
+
     for (int j = 1; j < ny-1; ++j) {
       tmp_image[j+i*nx] = image[j+i*nx] * 0.6f;
       tmp_image[j+i*nx] += image[j  +(i-1)*nx] * 0.1f;
@@ -218,6 +212,7 @@ void stencilwhole(const short nx, const short ny, float * restrict image, float 
       tmp_image[j+i*nx] += image[j-1+i*nx] * 0.1f;
       tmp_image[j+i*nx] += image[j+1+i*nx] * 0.1f;
     }
+
     //when j=nx-1
     tmp_image[(ny-1)+i*nx] = image[(ny-1)+i*nx] * 0.6f;
     tmp_image[(ny-1)+i*nx] += image[(ny-1)  +(i-1)*nx] * 0.1f;
@@ -420,27 +415,7 @@ short calculateRowBoundary(const short ny, const short rank, const short noOfPar
   }
   return output;
 }
-/*
-short calculateAdjacentRank(const short direction, const short rank, const short noOfProcesses){
-short output;
-if(direction == ABOVE){
-if(rank == 0){
-output = noOfProcesses - 1;
-}
-else{
-output = rank - 1;
-}
-}
-else if(direction == BELOW){
-if(rank = noOfProcesses - 1){
-output = 0;
-}
-else{
-output = rank + 1;
-}
-}
-return output;
-}*/
+
 
 // Get the current time in seconds since the Epoch
 double wtime(void) {
