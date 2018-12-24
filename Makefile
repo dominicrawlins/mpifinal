@@ -1,15 +1,16 @@
 #
-# Makefile to build stencil MPI
+# Makefile to build example MPI programs
 #
 
 CC=mpicc
 
 COMP=GNU
 ifeq ($(COMP), GNU)
-  CFLAGS=-std=c99 -qopenmp -pthread -Wall -Ofast
+  CFLAGS=-std=c99 -Wall -Ofast
 endif
 
 EXE1=stencil.exe
+#EXE2=derived-type.exe
 EXES=$(EXE1) $(EXE2)
 
 all: $(EXES)
@@ -22,4 +23,3 @@ $(EXES): %.exe : %.c
 clean:
 	\rm -f $(EXES)
 	\rm -f *.o
-
